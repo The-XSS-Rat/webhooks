@@ -1,7 +1,7 @@
-"""Cybersecurity writeup fetcher and Discord webhook poster.
+"""Hacking music fetcher and Discord webhook poster.
 
-Pulls entries from several well-known security RSS feeds, picks one at
-random, and sends a rich embed to a Discord webhook URL.
+Pulls music entries from hacking- and cyberpunk-themed subreddits and music
+blogs, picks one at random, and sends a rich embed to a Discord webhook URL.
 """
 
 import html
@@ -16,22 +16,20 @@ import requests
 # ---------------------------------------------------------------------------
 # RSS feed sources
 # ---------------------------------------------------------------------------
-WRITEUP_FEEDS = [
-    {"url": "https://ctftime.org/writeups/rss/",                    "name": "CTFTime Writeups"},
-    {"url": "https://portswigger.net/blog/rss",                     "name": "PortSwigger Blog"},
-    {"url": "https://research.nccgroup.com/feed/",                  "name": "NCC Group Research"},
-    {"url": "https://googleprojectzero.blogspot.com/feeds/posts/default",
-                                                                    "name": "Google Project Zero"},
-    {"url": "https://www.exploit-db.com/rss.xml",                   "name": "Exploit-DB"},
-    {"url": "https://www.hackerone.com/blog.rss",                   "name": "HackerOne Blog"},
-    {"url": "https://security.googleblog.com/feeds/posts/default",  "name": "Google Security Blog"},
+MUSIC_FEEDS = [
+    {"url": "https://www.reddit.com/r/HackingMusic/.rss",              "name": "Reddit /r/HackingMusic"},
+    {"url": "https://www.reddit.com/r/outrun/.rss",                    "name": "Reddit /r/outrun"},
+    {"url": "https://www.reddit.com/r/cyberpunk/.rss",                 "name": "Reddit /r/cyberpunk"},
+    {"url": "https://www.reddit.com/r/retrowave/.rss",                 "name": "Reddit /r/retrowave"},
+    {"url": "https://www.reddit.com/r/DarkAmbient/.rss",               "name": "Reddit /r/DarkAmbient"},
+    {"url": "https://www.reddit.com/r/industrialmusic/.rss",           "name": "Reddit /r/industrialmusic"},
 ]
 
 # Max entries to collect per feed before random selection
 _MAX_PER_FEED = 20
 
-# Discord embed colour (matrix green)
-_EMBED_COLOUR = 0x00FF41
+# Discord embed colour (neon purple)
+_EMBED_COLOUR = 0x9B59B6
 
 
 # ---------------------------------------------------------------------------
@@ -49,17 +47,17 @@ def _clean_html(text: str) -> str:
 # Public API
 # ---------------------------------------------------------------------------
 
-def fetch_random_writeup(
+def fetch_random_track(
     log_callback: Optional[Callable[[str], None]] = None,
 ) -> Optional[dict]:
-    """Fetch a random cybersecurity writeup entry from the configured feeds.
+    """Fetch a random music entry from the configured feeds.
 
     Returns a dict with keys ``title``, ``link``, ``summary``, ``source``,
     and ``published``, or *None* if no entries could be retrieved.
     """
     entries: list[dict] = []
 
-    for feed_info in WRITEUP_FEEDS:
+    for feed_info in MUSIC_FEEDS:
         try:
             if log_callback:
                 log_callback(f"Fetching from {feed_info['name']} …")
@@ -88,25 +86,25 @@ def fetch_random_writeup(
     return random.choice(entries)
 
 
-def post_to_discord(webhook_url: str, writeup: dict) -> None:
-    """Post *writeup* as a Discord embed to *webhook_url*.
+def post_to_discord(webhook_url: str, track: dict) -> None:
+    """Post *track* as a Discord embed to *webhook_url*.
 
     Raises :class:`requests.HTTPError` on a non-2xx response.
     """
-    description = writeup.get("summary", "No description available.")
+    description = track.get("summary", "No description available.")
     if len(description) > 4096:
         description = description[:4093] + "…"
 
     embed: dict = {
-        "title": writeup["title"][:256],
-        "url": writeup["link"] or None,
+        "title": track["title"][:256],
+        "url": track["link"] or None,
         "description": description,
         "color": _EMBED_COLOUR,
-        "author": {"name": "🔐 Cybersecurity Writeup of the Day"},
+        "author": {"name": "🎵 Hacking Music of the Day"},
         "fields": [
             {
                 "name": "Source",
-                "value": writeup.get("source", "Unknown"),
+                "value": track.get("source", "Unknown"),
                 "inline": True,
             }
         ],
@@ -115,9 +113,9 @@ def post_to_discord(webhook_url: str, writeup: dict) -> None:
         },
     }
 
-    if writeup.get("published"):
+    if track.get("published"):
         embed["fields"].append(
-            {"name": "Published", "value": writeup["published"], "inline": True}
+            {"name": "Published", "value": track["published"], "inline": True}
         )
 
     response = requests.post(

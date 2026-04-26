@@ -9,6 +9,18 @@ DEFAULT_CONFIG: dict = {
     "cyber_webhook_url": "",
     "cyber_interval_hours": 24,
     "cyber_auto_start": False,
+    "resources_webhook_url": "",
+    "resources_interval_hours": 24,
+    "resources_auto_start": False,
+    "music_webhook_url": "",
+    "music_interval_hours": 24,
+    "music_auto_start": False,
+    "bugbounty_webhook_url": "",
+    "bugbounty_interval_hours": 24,
+    "bugbounty_auto_start": False,
+    "dork_webhook_url": "",
+    "dork_interval_hours": 24,
+    "dork_auto_start": False,
 }
 
 
