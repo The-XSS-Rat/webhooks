@@ -17,7 +17,6 @@ import requests
 # RSS feed sources
 # ---------------------------------------------------------------------------
 WRITEUP_FEEDS = [
-    {"url": "https://ctftime.org/writeups/rss/",                    "name": "CTFTime Writeups"},
     {"url": "https://portswigger.net/blog/rss",                     "name": "PortSwigger Blog"},
     {"url": "https://research.nccgroup.com/feed/",                  "name": "NCC Group Research"},
     {"url": "https://googleprojectzero.blogspot.com/feeds/posts/default",
@@ -25,7 +24,18 @@ WRITEUP_FEEDS = [
     {"url": "https://www.exploit-db.com/rss.xml",                   "name": "Exploit-DB"},
     {"url": "https://www.hackerone.com/blog.rss",                   "name": "HackerOne Blog"},
     {"url": "https://security.googleblog.com/feeds/posts/default",  "name": "Google Security Blog"},
+    {"url": "https://ctftime.org/writeups/rss/",                    "name": "CTFTime Writeups"},
 ]
+
+# Browser-like headers so feeds don't reject the request
+_FEED_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/124.0.0.0 Safari/537.36"
+    ),
+    "Accept": "application/rss+xml, application/xml, text/xml, */*",
+}
 
 # Max entries to collect per feed before random selection
 _MAX_PER_FEED = 20
@@ -37,6 +47,16 @@ _EMBED_COLOUR = 0x00FF41
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+def _fetch_feed(url: str) -> "feedparser.FeedParserDict":
+    """Fetch an RSS feed via *requests* so we can send a browser User-Agent.
+
+    Falls back to an empty FeedParserDict if the request fails.
+    """
+    response = requests.get(url, headers=_FEED_HEADERS, timeout=15, allow_redirects=True)
+    response.raise_for_status()
+    return feedparser.parse(response.content)
+
 
 def _clean_html(text: str) -> str:
     """Strip HTML tags, decode entities, and collapse whitespace."""
@@ -63,7 +83,7 @@ def fetch_random_writeup(
         try:
             if log_callback:
                 log_callback(f"Fetching from {feed_info['name']} …")
-            feed = feedparser.parse(feed_info["url"])
+            feed = _fetch_feed(feed_info["url"])
             for entry in feed.entries[:_MAX_PER_FEED]:
                 raw_summary = entry.get("summary", entry.get("description", ""))
                 summary = _clean_html(raw_summary)

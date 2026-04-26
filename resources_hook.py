@@ -18,14 +18,24 @@ import requests
 # ---------------------------------------------------------------------------
 RESOURCE_FEEDS = [
     {"url": "https://krebsonsecurity.com/feed/",                        "name": "Krebs on Security"},
-    {"url": "https://www.darkreading.com/rss.xml",                      "name": "Dark Reading"},
+    {"url": "https://www.darkreading.com/rss/all.xml",                  "name": "Dark Reading"},
     {"url": "https://isc.sans.edu/rssfeed_full.xml",                    "name": "SANS ISC"},
-    {"url": "https://feeds.feedburner.com/TheHackersNews",              "name": "The Hacker News"},
-    {"url": "https://threatpost.com/feed/",                             "name": "Threatpost"},
+    {"url": "https://thehackernews.com/feeds/posts/default",            "name": "The Hacker News"},
+    {"url": "https://www.securityweek.com/feed/",                       "name": "SecurityWeek"},
     {"url": "https://www.bleepingcomputer.com/feed/",                   "name": "Bleeping Computer"},
     {"url": "https://www.reddit.com/r/netsec/.rss",                     "name": "Reddit /r/netsec"},
     {"url": "https://www.reddit.com/r/hacking/.rss",                    "name": "Reddit /r/hacking"},
 ]
+
+# Browser-like headers so feeds don't reject the request
+_FEED_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/124.0.0.0 Safari/537.36"
+    ),
+    "Accept": "application/rss+xml, application/xml, text/xml, */*",
+}
 
 # Max entries to collect per feed before random selection
 _MAX_PER_FEED = 20
@@ -37,6 +47,16 @@ _EMBED_COLOUR = 0x0F3460
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+def _fetch_feed(url: str) -> "feedparser.FeedParserDict":
+    """Fetch an RSS feed via *requests* so we can send a browser User-Agent.
+
+    Falls back to an empty FeedParserDict if the request fails.
+    """
+    response = requests.get(url, headers=_FEED_HEADERS, timeout=15, allow_redirects=True)
+    response.raise_for_status()
+    return feedparser.parse(response.content)
+
 
 def _clean_html(text: str) -> str:
     """Strip HTML tags, decode entities, and collapse whitespace."""
@@ -63,7 +83,7 @@ def fetch_random_resource(
         try:
             if log_callback:
                 log_callback(f"Fetching from {feed_info['name']} …")
-            feed = feedparser.parse(feed_info["url"])
+            feed = _fetch_feed(feed_info["url"])
             for entry in feed.entries[:_MAX_PER_FEED]:
                 raw_summary = entry.get("summary", entry.get("description", ""))
                 summary = _clean_html(raw_summary)
