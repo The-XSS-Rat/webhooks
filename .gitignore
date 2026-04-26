@@ -1,0 +1,16 @@
+# User-specific configuration (contains webhook URLs)
+config.json
+
+# Python bytecode
+__pycache__/
+*.py[cod]
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Distribution / packaging
+*.egg-info/
+dist/
+build/
