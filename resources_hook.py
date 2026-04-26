@@ -78,10 +78,7 @@ def fetch_random_resource(
                         "published": entry.get("published", ""),
                     }
                 )
-        except (feedparser.CharacterEncodingOverride, OSError, ValueError) as exc:
-            if log_callback:
-                log_callback(f"Warning: could not fetch {feed_info['name']}: {exc}")
-        except Exception as exc:  # noqa: BLE001 – unknown feedparser/network errors
+        except Exception as exc:  # noqa: BLE001 – feedparser/network errors
             if log_callback:
                 log_callback(f"Warning: could not fetch {feed_info['name']}: {exc}")
 

@@ -717,10 +717,9 @@ class CommandCenter(tk.Tk):
         log_frame.pack(fill="both", expand=True, padx=10, pady=(0, 10))
 
         self._res_log_text = tk.Text(
-            log_frame, bg="#0d1117", fg="#0F3460", font=("Consolas", 9),
+            log_frame, bg="#0d1117", fg="#4da6ff", font=("Consolas", 9),
             relief="flat", bd=0, state="disabled", wrap="word",
         )
-        self._res_log_text.configure(fg="#4da6ff")
         log_sb = tk.Scrollbar(log_frame, orient="vertical", command=self._res_log_text.yview)
         self._res_log_text.configure(yscrollcommand=log_sb.set)
         self._res_log_text.pack(side="left", fill="both", expand=True)
