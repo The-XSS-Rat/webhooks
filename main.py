@@ -1,15 +1,19 @@
 """Webhook Command Center – main GUI entry point.
 
-A dark-themed Tkinter application with four tabs:
+A dark-themed Tkinter application with six tabs:
 
 * **Configuration** – set the Discord webhook URLs and schedule options for
-  all three poster types.
+  all five poster types.
 * **Cybersecurity Writeups** – start/stop the scheduler that posts a random
   cybersecurity writeup to Discord every *N* hours, and send one on demand.
 * **Cyber Resources** – start/stop the scheduler that posts a random
   cybersecurity resource to Discord every *N* hours, and send one on demand.
 * **Hacking Music** – start/stop the scheduler that posts a random hacking
   music recommendation to Discord every *N* hours, and send one on demand.
+* **Bug Bounty** – start/stop the scheduler that posts a random curated bug
+  bounty program to Discord every *N* hours, and send one on demand.
+* **Google Dorks** – start/stop the scheduler that posts a randomly generated
+  Google dork to Discord every *N* hours, and send one on demand.
 
 Usage::
 
@@ -27,6 +31,8 @@ import config as cfg
 import cyber_hook
 import resources_hook
 import music_hook
+import bugbounty_hook
+import dork_hook
 
 # ---------------------------------------------------------------------------
 # Theme constants
@@ -95,6 +101,18 @@ class CommandCenter(tk.Tk):
         self._music_stop_event = threading.Event()
         self._music_next_post_time: datetime | None = None
 
+        # Bug bounty scheduler state
+        self._bugbounty_running = False
+        self._bugbounty_thread: threading.Thread | None = None
+        self._bugbounty_stop_event = threading.Event()
+        self._bugbounty_next_post_time: datetime | None = None
+
+        # Dork scheduler state
+        self._dork_running = False
+        self._dork_thread: threading.Thread | None = None
+        self._dork_stop_event = threading.Event()
+        self._dork_next_post_time: datetime | None = None
+
         self._build_header()
         self._build_notebook()
 
@@ -108,6 +126,10 @@ class CommandCenter(tk.Tk):
             self.after(600, self._start_resources)
         if self.config_data.get("music_auto_start"):
             self.after(700, self._start_music)
+        if self.config_data.get("bugbounty_auto_start"):
+            self.after(800, self._start_bugbounty)
+        if self.config_data.get("dork_auto_start"):
+            self.after(900, self._start_dork)
 
     # ------------------------------------------------------------------
     # Header
@@ -167,6 +189,14 @@ class CommandCenter(tk.Tk):
         music_tab = ttk.Frame(nb)
         nb.add(music_tab, text="  🎵  Hacking Music  ")
         self._build_music_tab(music_tab)
+
+        bugbounty_tab = ttk.Frame(nb)
+        nb.add(bugbounty_tab, text="  🏆  Bug Bounty  ")
+        self._build_bugbounty_tab(bugbounty_tab)
+
+        dork_tab = ttk.Frame(nb)
+        nb.add(dork_tab, text="  🔍  Google Dorks  ")
+        self._build_dork_tab(dork_tab)
 
     # ------------------------------------------------------------------
     # Configuration tab
@@ -308,6 +338,80 @@ class CommandCenter(tk.Tk):
         ).pack(side="left")
 
         self._sep(inner)
+
+        # --- Bug Bounty Webhook block ---
+        tk.Label(inner, text="🏆  Bug Bounty Program Webhook",
+                 font=FONT_B, bg=BG, fg=GREEN).pack(anchor="w", padx=20, pady=(14, 6))
+
+        # Webhook URL
+        bb_url_row = _row("Discord Webhook URL:")
+        self._bugbounty_url_var = tk.StringVar(value=self.config_data.get("bugbounty_webhook_url", ""))
+        tk.Entry(
+            bb_url_row, textvariable=self._bugbounty_url_var, width=58,
+            bg=BG2, fg=TEXT, insertbackground=TEXT, font=FONT, relief="flat", bd=4,
+        ).pack(side="left", fill="x", expand=True)
+
+        # Interval
+        bb_interval_row = _row("Post Interval (hours):")
+        self._bugbounty_interval_var = tk.IntVar(
+            value=self.config_data.get("bugbounty_interval_hours", 24)
+        )
+        tk.Spinbox(
+            bb_interval_row, from_=1, to=168, textvariable=self._bugbounty_interval_var,
+            width=6, bg=BG2, fg=TEXT, buttonbackground=ACCENT,
+            font=FONT, relief="flat",
+        ).pack(side="left")
+        tk.Label(bb_interval_row, text="  (1 – 168 h)", font=FONT, bg=BG, fg="#888888").pack(side="left")
+
+        # Auto-start
+        bb_autostart_row = _row("Auto-Start on Launch:")
+        self._bugbounty_autostart_var = tk.BooleanVar(
+            value=self.config_data.get("bugbounty_auto_start", False)
+        )
+        tk.Checkbutton(
+            bb_autostart_row, variable=self._bugbounty_autostart_var,
+            bg=BG, fg=TEXT, selectcolor=BG2,
+            activebackground=BG, activeforeground=GREEN, font=FONT,
+        ).pack(side="left")
+
+        self._sep(inner)
+
+        # --- Google Dork Webhook block ---
+        tk.Label(inner, text="🔍  Google Dork Webhook",
+                 font=FONT_B, bg=BG, fg=GREEN).pack(anchor="w", padx=20, pady=(14, 6))
+
+        # Webhook URL
+        dork_url_row = _row("Discord Webhook URL:")
+        self._dork_url_var = tk.StringVar(value=self.config_data.get("dork_webhook_url", ""))
+        tk.Entry(
+            dork_url_row, textvariable=self._dork_url_var, width=58,
+            bg=BG2, fg=TEXT, insertbackground=TEXT, font=FONT, relief="flat", bd=4,
+        ).pack(side="left", fill="x", expand=True)
+
+        # Interval
+        dork_interval_row = _row("Post Interval (hours):")
+        self._dork_interval_var = tk.IntVar(
+            value=self.config_data.get("dork_interval_hours", 24)
+        )
+        tk.Spinbox(
+            dork_interval_row, from_=1, to=168, textvariable=self._dork_interval_var,
+            width=6, bg=BG2, fg=TEXT, buttonbackground=ACCENT,
+            font=FONT, relief="flat",
+        ).pack(side="left")
+        tk.Label(dork_interval_row, text="  (1 – 168 h)", font=FONT, bg=BG, fg="#888888").pack(side="left")
+
+        # Auto-start
+        dork_autostart_row = _row("Auto-Start on Launch:")
+        self._dork_autostart_var = tk.BooleanVar(
+            value=self.config_data.get("dork_auto_start", False)
+        )
+        tk.Checkbutton(
+            dork_autostart_row, variable=self._dork_autostart_var,
+            bg=BG, fg=TEXT, selectcolor=BG2,
+            activebackground=BG, activeforeground=GREEN, font=FONT,
+        ).pack(side="left")
+
+        self._sep(inner)
         save_row = tk.Frame(inner, bg=BG)
         save_row.pack(anchor="w", padx=20, pady=14)
 
@@ -329,6 +433,12 @@ class CommandCenter(tk.Tk):
         self.config_data["music_webhook_url"] = self._music_url_var.get().strip()
         self.config_data["music_interval_hours"] = int(self._music_interval_var.get())
         self.config_data["music_auto_start"] = bool(self._music_autostart_var.get())
+        self.config_data["bugbounty_webhook_url"] = self._bugbounty_url_var.get().strip()
+        self.config_data["bugbounty_interval_hours"] = int(self._bugbounty_interval_var.get())
+        self.config_data["bugbounty_auto_start"] = bool(self._bugbounty_autostart_var.get())
+        self.config_data["dork_webhook_url"] = self._dork_url_var.get().strip()
+        self.config_data["dork_interval_hours"] = int(self._dork_interval_var.get())
+        self.config_data["dork_auto_start"] = bool(self._dork_autostart_var.get())
         cfg.save_config(self.config_data)
         self._cfg_status_lbl.configure(text="✓  Saved!")
         self.after(3000, lambda: self._cfg_status_lbl.configure(text=""))
@@ -535,6 +645,26 @@ class CommandCenter(tk.Tk):
                 )
             else:
                 self._music_countdown_lbl.configure(text="   Posting soon …")
+        if self._bugbounty_running and self._bugbounty_next_post_time:
+            remaining = int((self._bugbounty_next_post_time - datetime.now()).total_seconds())
+            if remaining > 0:
+                h, r = divmod(remaining, 3600)
+                m, s = divmod(r, 60)
+                self._bugbounty_countdown_lbl.configure(
+                    text=f"   Next post in:  {h:02d}:{m:02d}:{s:02d}"
+                )
+            else:
+                self._bugbounty_countdown_lbl.configure(text="   Posting soon …")
+        if self._dork_running and self._dork_next_post_time:
+            remaining = int((self._dork_next_post_time - datetime.now()).total_seconds())
+            if remaining > 0:
+                h, r = divmod(remaining, 3600)
+                m, s = divmod(r, 60)
+                self._dork_countdown_lbl.configure(
+                    text=f"   Next post in:  {h:02d}:{m:02d}:{s:02d}"
+                )
+            else:
+                self._dork_countdown_lbl.configure(text="   Posting soon …")
         self.after(1000, self._tick_countdown)
 
     # ------------------------------------------------------------------
@@ -840,8 +970,299 @@ class CommandCenter(tk.Tk):
         except Exception as exc:  # noqa: BLE001 – catch-all for unexpected errors
             self._music_log(f"ERROR (unexpected): {type(exc).__name__}: {exc}")
 
+    # ------------------------------------------------------------------
+    # Bug Bounty tab
+    # ------------------------------------------------------------------
 
-# ---------------------------------------------------------------------------
+    def _build_bugbounty_tab(self, parent: tk.Widget) -> None:
+        # --- Status bar ---
+        status_bar = tk.Frame(parent, bg=BG2, pady=10)
+        status_bar.pack(fill="x", padx=10, pady=(10, 0))
+
+        self._bugbounty_dot_lbl = tk.Label(status_bar, text="●", font=("Consolas", 15),
+                                           bg=BG2, fg="#ff4444")
+        self._bugbounty_dot_lbl.pack(side="left", padx=(15, 4))
+
+        self._bugbounty_status_lbl = tk.Label(status_bar, text="STOPPED",
+                                              font=("Consolas", 12, "bold"), bg=BG2, fg="#ff4444")
+        self._bugbounty_status_lbl.pack(side="left")
+
+        self._bugbounty_countdown_lbl = tk.Label(status_bar, text="", font=FONT, bg=BG2, fg=TEXT)
+        self._bugbounty_countdown_lbl.pack(side="left", padx=18)
+
+        # --- Buttons ---
+        btn_row = tk.Frame(parent, bg=BG, pady=8)
+        btn_row.pack(fill="x", padx=10)
+
+        self._bb_start_btn = _dark_button(
+            btn_row, "▶  Start", self._start_bugbounty,
+            bg="#1a472a", fg=GREEN, abg="#2d6a4f", afg=GREEN,
+        )
+        self._bb_start_btn.pack(side="left", padx=(0, 6))
+
+        self._bb_stop_btn = _dark_button(
+            btn_row, "■  Stop", self._stop_bugbounty,
+            bg="#4a1a1a", fg=HIGHLIGHT, abg="#7a2929", afg=HIGHLIGHT, state="disabled",
+        )
+        self._bb_stop_btn.pack(side="left", padx=(0, 6))
+
+        self._bb_send_now_btn = _dark_button(
+            btn_row, "⚡  Send Now", self._send_bugbounty_now,
+        )
+        self._bb_send_now_btn.pack(side="left")
+
+        # --- Log area ---
+        tk.Label(parent, text="Activity Log:", font=FONT_B, bg=BG, fg=TEXT).pack(
+            anchor="w", padx=15, pady=(12, 2)
+        )
+
+        log_frame = tk.Frame(parent, bg=BG)
+        log_frame.pack(fill="both", expand=True, padx=10, pady=(0, 10))
+
+        self._bb_log_text = tk.Text(
+            log_frame, bg="#0d1117", fg="#F1C40F", font=("Consolas", 9),
+            relief="flat", bd=0, state="disabled", wrap="word",
+        )
+        log_sb = tk.Scrollbar(log_frame, orient="vertical", command=self._bb_log_text.yview)
+        self._bb_log_text.configure(yscrollcommand=log_sb.set)
+        self._bb_log_text.pack(side="left", fill="both", expand=True)
+        log_sb.pack(side="right", fill="y")
+
+        self._bb_log("System initialized. Set your webhook URL in the Configuration tab then press ▶ Start.")
+
+    def _bb_log(self, message: str) -> None:
+        def _insert():
+            ts = datetime.now().strftime("%H:%M:%S")
+            self._bb_log_text.configure(state="normal")
+            self._bb_log_text.insert("end", f"[{ts}] {message}\n")
+            self._bb_log_text.see("end")
+            self._bb_log_text.configure(state="disabled")
+
+        self.after(0, _insert)
+
+    def _set_bugbounty_ui(self, running: bool) -> None:
+        self._bugbounty_running = running
+        if running:
+            self._bugbounty_dot_lbl.configure(fg=GREEN)
+            self._bugbounty_status_lbl.configure(text="RUNNING", fg=GREEN)
+            self._bb_start_btn.configure(state="disabled")
+            self._bb_stop_btn.configure(state="normal")
+        else:
+            self._bugbounty_dot_lbl.configure(fg="#ff4444")
+            self._bugbounty_status_lbl.configure(text="STOPPED", fg="#ff4444")
+            self._bb_start_btn.configure(state="normal")
+            self._bb_stop_btn.configure(state="disabled")
+            self._bugbounty_countdown_lbl.configure(text="")
+            self._bugbounty_next_post_time = None
+
+    def _start_bugbounty(self) -> None:
+        url = self.config_data.get("bugbounty_webhook_url", "").strip()
+        if not url:
+            url = self._bugbounty_url_var.get().strip()
+        if not url:
+            messagebox.showerror(
+                "Configuration Error",
+                "Please enter a Discord Webhook URL for Bug Bounty in the Configuration tab and save.",
+            )
+            return
+        if self._bugbounty_running:
+            return
+        interval = int(self.config_data.get("bugbounty_interval_hours", 24))
+        self._bugbounty_stop_event.clear()
+        self._bugbounty_thread = threading.Thread(
+            target=self._bugbounty_loop, args=(url, interval), daemon=True
+        )
+        self._bugbounty_thread.start()
+        self._set_bugbounty_ui(True)
+        self._bb_log(f"Scheduler started – posting every {interval} hour(s).")
+
+    def _stop_bugbounty(self) -> None:
+        self._bugbounty_stop_event.set()
+        self._set_bugbounty_ui(False)
+        self._bb_log("Scheduler stopped.")
+
+    def _send_bugbounty_now(self) -> None:
+        url = self.config_data.get("bugbounty_webhook_url", "").strip()
+        if not url:
+            url = self._bugbounty_url_var.get().strip()
+        if not url:
+            messagebox.showerror(
+                "Configuration Error",
+                "Please enter a Discord Webhook URL for Bug Bounty in the Configuration tab and save.",
+            )
+            return
+        threading.Thread(target=self._do_bugbounty_post, args=(url,), daemon=True).start()
+
+    def _bugbounty_loop(self, webhook_url: str, interval_hours: int) -> None:
+        """Runs in a daemon thread. Posts immediately, then on a fixed schedule."""
+        self._do_bugbounty_post(webhook_url)
+        interval_secs = interval_hours * 3600
+        self._bugbounty_next_post_time = datetime.now() + timedelta(seconds=interval_secs)
+
+        while not self._bugbounty_stop_event.wait(1):
+            if datetime.now() >= self._bugbounty_next_post_time:
+                self._do_bugbounty_post(webhook_url)
+                self._bugbounty_next_post_time = datetime.now() + timedelta(seconds=interval_secs)
+
+    def _do_bugbounty_post(self, webhook_url: str) -> None:
+        self._bb_log("Selecting a random bug bounty program …")
+        try:
+            program = bugbounty_hook.pick_random_program(log_callback=self._bb_log)
+            bugbounty_hook.post_to_discord(webhook_url, program)
+            self._bb_log(f"✓  Posted successfully: {program['name']}")
+        except requests.HTTPError as exc:
+            self._bb_log(f"ERROR: Discord webhook returned {exc.response.status_code}: {exc}")
+        except requests.RequestException as exc:
+            self._bb_log(f"ERROR: Network error when posting to Discord: {exc}")
+        except Exception as exc:  # noqa: BLE001 – catch-all for unexpected errors
+            self._bb_log(f"ERROR (unexpected): {type(exc).__name__}: {exc}")
+
+    # ------------------------------------------------------------------
+    # Google Dorks tab
+    # ------------------------------------------------------------------
+
+    def _build_dork_tab(self, parent: tk.Widget) -> None:
+        # --- Status bar ---
+        status_bar = tk.Frame(parent, bg=BG2, pady=10)
+        status_bar.pack(fill="x", padx=10, pady=(10, 0))
+
+        self._dork_dot_lbl = tk.Label(status_bar, text="●", font=("Consolas", 15),
+                                      bg=BG2, fg="#ff4444")
+        self._dork_dot_lbl.pack(side="left", padx=(15, 4))
+
+        self._dork_status_lbl = tk.Label(status_bar, text="STOPPED",
+                                         font=("Consolas", 12, "bold"), bg=BG2, fg="#ff4444")
+        self._dork_status_lbl.pack(side="left")
+
+        self._dork_countdown_lbl = tk.Label(status_bar, text="", font=FONT, bg=BG2, fg=TEXT)
+        self._dork_countdown_lbl.pack(side="left", padx=18)
+
+        # --- Buttons ---
+        btn_row = tk.Frame(parent, bg=BG, pady=8)
+        btn_row.pack(fill="x", padx=10)
+
+        self._dork_start_btn = _dark_button(
+            btn_row, "▶  Start", self._start_dork,
+            bg="#1a472a", fg=GREEN, abg="#2d6a4f", afg=GREEN,
+        )
+        self._dork_start_btn.pack(side="left", padx=(0, 6))
+
+        self._dork_stop_btn = _dark_button(
+            btn_row, "■  Stop", self._stop_dork,
+            bg="#4a1a1a", fg=HIGHLIGHT, abg="#7a2929", afg=HIGHLIGHT, state="disabled",
+        )
+        self._dork_stop_btn.pack(side="left", padx=(0, 6))
+
+        self._dork_send_now_btn = _dark_button(
+            btn_row, "⚡  Send Now", self._send_dork_now,
+        )
+        self._dork_send_now_btn.pack(side="left")
+
+        # --- Log area ---
+        tk.Label(parent, text="Activity Log:", font=FONT_B, bg=BG, fg=TEXT).pack(
+            anchor="w", padx=15, pady=(12, 2)
+        )
+
+        log_frame = tk.Frame(parent, bg=BG)
+        log_frame.pack(fill="both", expand=True, padx=10, pady=(0, 10))
+
+        self._dork_log_text = tk.Text(
+            log_frame, bg="#0d1117", fg="#00FFFF", font=("Consolas", 9),
+            relief="flat", bd=0, state="disabled", wrap="word",
+        )
+        log_sb = tk.Scrollbar(log_frame, orient="vertical", command=self._dork_log_text.yview)
+        self._dork_log_text.configure(yscrollcommand=log_sb.set)
+        self._dork_log_text.pack(side="left", fill="both", expand=True)
+        log_sb.pack(side="right", fill="y")
+
+        self._dork_log("System initialized. Set your webhook URL in the Configuration tab then press ▶ Start.")
+
+    def _dork_log(self, message: str) -> None:
+        def _insert():
+            ts = datetime.now().strftime("%H:%M:%S")
+            self._dork_log_text.configure(state="normal")
+            self._dork_log_text.insert("end", f"[{ts}] {message}\n")
+            self._dork_log_text.see("end")
+            self._dork_log_text.configure(state="disabled")
+
+        self.after(0, _insert)
+
+    def _set_dork_ui(self, running: bool) -> None:
+        self._dork_running = running
+        if running:
+            self._dork_dot_lbl.configure(fg=GREEN)
+            self._dork_status_lbl.configure(text="RUNNING", fg=GREEN)
+            self._dork_start_btn.configure(state="disabled")
+            self._dork_stop_btn.configure(state="normal")
+        else:
+            self._dork_dot_lbl.configure(fg="#ff4444")
+            self._dork_status_lbl.configure(text="STOPPED", fg="#ff4444")
+            self._dork_start_btn.configure(state="normal")
+            self._dork_stop_btn.configure(state="disabled")
+            self._dork_countdown_lbl.configure(text="")
+            self._dork_next_post_time = None
+
+    def _start_dork(self) -> None:
+        url = self.config_data.get("dork_webhook_url", "").strip()
+        if not url:
+            url = self._dork_url_var.get().strip()
+        if not url:
+            messagebox.showerror(
+                "Configuration Error",
+                "Please enter a Discord Webhook URL for Google Dorks in the Configuration tab and save.",
+            )
+            return
+        if self._dork_running:
+            return
+        interval = int(self.config_data.get("dork_interval_hours", 24))
+        self._dork_stop_event.clear()
+        self._dork_thread = threading.Thread(
+            target=self._dork_loop, args=(url, interval), daemon=True
+        )
+        self._dork_thread.start()
+        self._set_dork_ui(True)
+        self._dork_log(f"Scheduler started – posting every {interval} hour(s).")
+
+    def _stop_dork(self) -> None:
+        self._dork_stop_event.set()
+        self._set_dork_ui(False)
+        self._dork_log("Scheduler stopped.")
+
+    def _send_dork_now(self) -> None:
+        url = self.config_data.get("dork_webhook_url", "").strip()
+        if not url:
+            url = self._dork_url_var.get().strip()
+        if not url:
+            messagebox.showerror(
+                "Configuration Error",
+                "Please enter a Discord Webhook URL for Google Dorks in the Configuration tab and save.",
+            )
+            return
+        threading.Thread(target=self._do_dork_post, args=(url,), daemon=True).start()
+
+    def _dork_loop(self, webhook_url: str, interval_hours: int) -> None:
+        """Runs in a daemon thread. Posts immediately, then on a fixed schedule."""
+        self._do_dork_post(webhook_url)
+        interval_secs = interval_hours * 3600
+        self._dork_next_post_time = datetime.now() + timedelta(seconds=interval_secs)
+
+        while not self._dork_stop_event.wait(1):
+            if datetime.now() >= self._dork_next_post_time:
+                self._do_dork_post(webhook_url)
+                self._dork_next_post_time = datetime.now() + timedelta(seconds=interval_secs)
+
+    def _do_dork_post(self, webhook_url: str) -> None:
+        self._dork_log("Generating a random Google dork …")
+        try:
+            dork = dork_hook.generate_random_dork(log_callback=self._dork_log)
+            dork_hook.post_to_discord(webhook_url, dork)
+            self._dork_log(f"✓  Posted successfully: [{dork['category']}] {dork['dork']}")
+        except requests.HTTPError as exc:
+            self._dork_log(f"ERROR: Discord webhook returned {exc.response.status_code}: {exc}")
+        except requests.RequestException as exc:
+            self._dork_log(f"ERROR: Network error when posting to Discord: {exc}")
+        except Exception as exc:  # noqa: BLE001 – catch-all for unexpected errors
+            self._dork_log(f"ERROR (unexpected): {type(exc).__name__}: {exc}")
 # Entry point
 # ---------------------------------------------------------------------------
 
