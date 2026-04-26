@@ -15,7 +15,8 @@ import threading
 from datetime import datetime, timedelta
 from tkinter import messagebox
 import tkinter as tk
-import tkinter.scrolledtext as scrolledtext
+
+import requests
 
 import config as cfg
 import cyber_hook
@@ -383,8 +384,12 @@ class CommandCenter(tk.Tk):
             self._log(f"Selected: «{writeup['title']}» [{writeup['source']}]")
             cyber_hook.post_to_discord(webhook_url, writeup)
             self._log(f"✓  Posted successfully: {writeup['title']}")
-        except Exception as exc:  # noqa: BLE001
-            self._log(f"ERROR: {exc}")
+        except requests.HTTPError as exc:
+            self._log(f"ERROR: Discord webhook returned {exc.response.status_code}: {exc}")
+        except requests.RequestException as exc:
+            self._log(f"ERROR: Network error when posting to Discord: {exc}")
+        except Exception as exc:  # noqa: BLE001 – catch-all for unexpected errors
+            self._log(f"ERROR (unexpected): {type(exc).__name__}: {exc}")
 
     # ------------------------------------------------------------------
     # Countdown ticker

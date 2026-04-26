@@ -7,7 +7,7 @@ random, and sends a rich embed to a Discord webhook URL.
 import html
 import re
 import random
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Callable, Optional
 
 import feedparser
@@ -78,7 +78,10 @@ def fetch_random_writeup(
                         "published": entry.get("published", ""),
                     }
                 )
-        except Exception as exc:  # noqa: BLE001
+        except (feedparser.CharacterEncodingOverride, OSError, ValueError) as exc:
+            if log_callback:
+                log_callback(f"Warning: could not fetch {feed_info['name']}: {exc}")
+        except Exception as exc:  # noqa: BLE001 – unknown feedparser/network errors
             if log_callback:
                 log_callback(f"Warning: could not fetch {feed_info['name']}: {exc}")
 
@@ -111,7 +114,7 @@ def post_to_discord(webhook_url: str, writeup: dict) -> None:
             }
         ],
         "footer": {
-            "text": f"Posted at {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')}"
+            "text": f"Posted at {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}"
         },
     }
 
