@@ -152,6 +152,27 @@ class CommandCenter(tk.Tk):
         self._clock_lbl.configure(text=datetime.now().strftime("%Y-%m-%d  %H:%M:%S"))
         self.after(1000, self._tick_clock)
 
+    def _last_post_display(self, key: str) -> str:
+        """Return a human-readable timestamp from persisted config."""
+        raw = str(self.config_data.get(key, "") or "").strip()
+        if not raw:
+            return "never"
+        try:
+            dt = datetime.fromisoformat(raw)
+            return dt.strftime("%Y-%m-%d %H:%M:%S")
+        except ValueError:
+            return raw
+
+    def _update_last_post_label(self, label: tk.Label, key: str) -> None:
+        self.after(0, lambda: label.configure(text=f"Last post: {self._last_post_display(key)}"))
+
+    def _record_last_post(self, key: str, label: tk.Label, log_callback) -> None:
+        stamp = datetime.now().isoformat(timespec="seconds")
+        self.config_data[key] = stamp
+        cfg.save_config(self.config_data)
+        self._update_last_post_label(label, key)
+        log_callback(f"Last post recorded: {stamp.replace('T', ' ')}")
+
     # ------------------------------------------------------------------
     # Notebook
     # ------------------------------------------------------------------
@@ -463,6 +484,10 @@ class CommandCenter(tk.Tk):
         self._cyber_countdown_lbl = tk.Label(status_bar, text="", font=FONT, bg=BG2, fg=TEXT)
         self._cyber_countdown_lbl.pack(side="left", padx=18)
 
+        self._cyber_last_post_lbl = tk.Label(status_bar, text="", font=FONT, bg=BG2, fg="#bbbbbb")
+        self._cyber_last_post_lbl.pack(side="right", padx=(0, 15))
+        self._update_last_post_label(self._cyber_last_post_lbl, "cyber_last_post_at")
+
         # --- Buttons ---
         btn_row = tk.Frame(parent, bg=BG, pady=8)
         btn_row.pack(fill="x", padx=10)
@@ -598,10 +623,11 @@ class CommandCenter(tk.Tk):
         try:
             writeup = cyber_hook.fetch_random_writeup(log_callback=self._log)
             if writeup is None:
-                self._log("ERROR: No writeups retrieved – check your internet connection.")
+                self._log("ERROR: No writeups retrieved from feeds. Sources may be rate-limited or temporarily unavailable.")
                 return
             self._log(f"Selected: «{writeup['title']}» [{writeup['source']}]")
             cyber_hook.post_to_discord(webhook_url, writeup)
+            self._record_last_post("cyber_last_post_at", self._cyber_last_post_lbl, self._log)
             self._log(f"✓  Posted successfully: {writeup['title']}")
         except requests.HTTPError as exc:
             self._log(f"ERROR: Discord webhook returned {exc.response.status_code}: {exc}")
@@ -686,6 +712,10 @@ class CommandCenter(tk.Tk):
 
         self._resources_countdown_lbl = tk.Label(status_bar, text="", font=FONT, bg=BG2, fg=TEXT)
         self._resources_countdown_lbl.pack(side="left", padx=18)
+
+        self._resources_last_post_lbl = tk.Label(status_bar, text="", font=FONT, bg=BG2, fg="#bbbbbb")
+        self._resources_last_post_lbl.pack(side="right", padx=(0, 15))
+        self._update_last_post_label(self._resources_last_post_lbl, "resources_last_post_at")
 
         # --- Buttons ---
         btn_row = tk.Frame(parent, bg=BG, pady=8)
@@ -806,10 +836,11 @@ class CommandCenter(tk.Tk):
         try:
             resource = resources_hook.fetch_random_resource(log_callback=self._res_log)
             if resource is None:
-                self._res_log("ERROR: No resources retrieved – check your internet connection.")
+                self._res_log("ERROR: No resources retrieved from feeds. Sources may be rate-limited or temporarily unavailable.")
                 return
             self._res_log(f"Selected: «{resource['title']}» [{resource['source']}]")
             resources_hook.post_to_discord(webhook_url, resource)
+            self._record_last_post("resources_last_post_at", self._resources_last_post_lbl, self._res_log)
             self._res_log(f"✓  Posted successfully: {resource['title']}")
         except requests.HTTPError as exc:
             self._res_log(f"ERROR: Discord webhook returned {exc.response.status_code}: {exc}")
@@ -837,6 +868,10 @@ class CommandCenter(tk.Tk):
 
         self._music_countdown_lbl = tk.Label(status_bar, text="", font=FONT, bg=BG2, fg=TEXT)
         self._music_countdown_lbl.pack(side="left", padx=18)
+
+        self._music_last_post_lbl = tk.Label(status_bar, text="", font=FONT, bg=BG2, fg="#bbbbbb")
+        self._music_last_post_lbl.pack(side="right", padx=(0, 15))
+        self._update_last_post_label(self._music_last_post_lbl, "music_last_post_at")
 
         # --- Buttons ---
         btn_row = tk.Frame(parent, bg=BG, pady=8)
@@ -957,10 +992,11 @@ class CommandCenter(tk.Tk):
         try:
             track = music_hook.fetch_random_track(log_callback=self._music_log)
             if track is None:
-                self._music_log("ERROR: No tracks retrieved – check your internet connection.")
+                self._music_log("ERROR: No tracks retrieved from feeds. Your internet can be fine; feed sources may be blocking or temporarily unavailable.")
                 return
             self._music_log(f"Selected: «{track['title']}» [{track['source']}]")
             music_hook.post_to_discord(webhook_url, track)
+            self._record_last_post("music_last_post_at", self._music_last_post_lbl, self._music_log)
             self._music_log(f"✓  Posted successfully: {track['title']}")
         except requests.HTTPError as exc:
             self._music_log(f"ERROR: Discord webhook returned {exc.response.status_code}: {exc}")
@@ -988,6 +1024,10 @@ class CommandCenter(tk.Tk):
 
         self._bugbounty_countdown_lbl = tk.Label(status_bar, text="", font=FONT, bg=BG2, fg=TEXT)
         self._bugbounty_countdown_lbl.pack(side="left", padx=18)
+
+        self._bugbounty_last_post_lbl = tk.Label(status_bar, text="", font=FONT, bg=BG2, fg="#bbbbbb")
+        self._bugbounty_last_post_lbl.pack(side="right", padx=(0, 15))
+        self._update_last_post_label(self._bugbounty_last_post_lbl, "bugbounty_last_post_at")
 
         # --- Buttons ---
         btn_row = tk.Frame(parent, bg=BG, pady=8)
@@ -1108,6 +1148,7 @@ class CommandCenter(tk.Tk):
         try:
             program = bugbounty_hook.pick_random_program(log_callback=self._bb_log)
             bugbounty_hook.post_to_discord(webhook_url, program)
+            self._record_last_post("bugbounty_last_post_at", self._bugbounty_last_post_lbl, self._bb_log)
             self._bb_log(f"✓  Posted successfully: {program['name']}")
         except requests.HTTPError as exc:
             self._bb_log(f"ERROR: Discord webhook returned {exc.response.status_code}: {exc}")
@@ -1135,6 +1176,10 @@ class CommandCenter(tk.Tk):
 
         self._dork_countdown_lbl = tk.Label(status_bar, text="", font=FONT, bg=BG2, fg=TEXT)
         self._dork_countdown_lbl.pack(side="left", padx=18)
+
+        self._dork_last_post_lbl = tk.Label(status_bar, text="", font=FONT, bg=BG2, fg="#bbbbbb")
+        self._dork_last_post_lbl.pack(side="right", padx=(0, 15))
+        self._update_last_post_label(self._dork_last_post_lbl, "dork_last_post_at")
 
         # --- Buttons ---
         btn_row = tk.Frame(parent, bg=BG, pady=8)
@@ -1255,6 +1300,7 @@ class CommandCenter(tk.Tk):
         try:
             dork = dork_hook.generate_random_dork(log_callback=self._dork_log)
             dork_hook.post_to_discord(webhook_url, dork)
+            self._record_last_post("dork_last_post_at", self._dork_last_post_lbl, self._dork_log)
             self._dork_log(f"✓  Posted successfully: [{dork['category']}] {dork['dork']}")
         except requests.HTTPError as exc:
             self._dork_log(f"ERROR: Discord webhook returned {exc.response.status_code}: {exc}")

@@ -724,6 +724,79 @@ BUG_BOUNTY_PROGRAMS: list[dict] = [
 _EMBED_COLOUR = 0xF1C40F
 
 
+def _compact(value: str, limit: int = 1024) -> str:
+    """Return *value* trimmed to Discord field limits."""
+    if len(value) <= limit:
+        return value
+    return value[: limit - 1] + "…"
+
+
+def _program_text(program: dict) -> str:
+    return " ".join(
+        [
+            program.get("name", ""),
+            program.get("platform", ""),
+            program.get("scope", ""),
+            program.get("focus", ""),
+            program.get("description", ""),
+        ]
+    ).lower()
+
+
+def _matching_tip(program: dict) -> str:
+    """Generate a practical tip aligned with the selected program profile."""
+    text = _program_text(program)
+    scope_hint = program.get("scope", "")
+    scope_hint = scope_hint.split(",")[0].strip() if scope_hint else "primary in-scope assets"
+
+    rulebook = [
+        (("idor", "authorization", "tenant isolation"),
+         "Start with horizontal and vertical authorization checks on each API object ID; compare responses across two accounts."),
+        (("ssrf", "metadata", "cloud"),
+         "Map URL-fetch features first, then test SSRF controls and cloud-metadata protections with strict allow-list bypass checks."),
+        (("xss", "stored xss"),
+         "Trace all rich-text and markdown inputs end-to-end and test stored-XSS payloads that execute in higher-privileged views."),
+        (("oauth", "token", "account takeover"),
+         "Focus on OAuth/token lifecycle: callback validation, token leakage in redirects, and scope escalation across apps."),
+        (("payment", "wallet", "trading", "fund"),
+         "Review money-moving flows for amount tampering, replay, race conditions, and missing server-side integrity checks."),
+        (("rce", "pipeline", "ci/cd", "sandbox"),
+         "Probe template/build execution paths and worker isolation boundaries for command execution or sandbox escapes."),
+        (("api", "jwt", "key exposure"),
+         "Enumerate API auth models, then verify signature validation, key rotation handling, and permission enforcement per endpoint."),
+    ]
+
+    for keywords, tip in rulebook:
+        if any(keyword in text for keyword in keywords):
+            return f"{tip} Prioritise {scope_hint}."
+
+    return (
+        "Begin with account boundary tests and high-impact business flows first, then move to injection and misconfiguration checks "
+        f"on {scope_hint}."
+    )
+
+
+def _matching_writeup(program: dict) -> str:
+    """Generate writeup guidance aligned with the selected program and platform."""
+    platform = program.get("platform", "").lower()
+    focus = program.get("focus", "general web security issues")
+    name = program.get("name", "this program")
+
+    if "hackerone" in platform:
+        source = "HackerOne disclosed reports"
+    elif "bugcrowd" in platform:
+        source = "Bugcrowd disclosed reports"
+    elif "intigriti" in platform:
+        source = "Intigriti public hall-of-fame writeups"
+    else:
+        source = "public writeups and conference talks"
+
+    return (
+        f"Read {source} for {name} and prioritise cases covering: {focus}. "
+        "Use those patterns to build your first test checklist."
+    )
+
+
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
@@ -732,7 +805,9 @@ def pick_random_program(
     log_callback: Optional[Callable[[str], None]] = None,
 ) -> dict:
     """Return a randomly selected bug bounty program dict."""
-    program = random.choice(BUG_BOUNTY_PROGRAMS)
+    program = random.choice(BUG_BOUNTY_PROGRAMS).copy()
+    program.setdefault("tip", _matching_tip(program))
+    program.setdefault("writeup", _matching_writeup(program))
     if log_callback:
         log_callback(f"Selected program: {program['name']}")
     return program
@@ -756,8 +831,10 @@ def post_to_discord(webhook_url: str, program: dict) -> None:
         "fields": [
             {"name": "Platform",    "value": program.get("platform", "Unknown"),    "inline": True},
             {"name": "Max Reward",  "value": program.get("max_reward", "Varies"),   "inline": True},
-            {"name": "Scope",       "value": program.get("scope", "See program"),   "inline": False},
-            {"name": "Focus Areas", "value": program.get("focus", "General"),       "inline": False},
+            {"name": "Scope",       "value": _compact(program.get("scope", "See program")),   "inline": False},
+            {"name": "Focus Areas", "value": _compact(program.get("focus", "General")),       "inline": False},
+            {"name": "Tip",         "value": _compact(program.get("tip", "")),                "inline": False},
+            {"name": "Matching Writeup", "value": _compact(program.get("writeup", "")),       "inline": False},
         ],
         "footer": {
             "text": f"Posted at {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}"

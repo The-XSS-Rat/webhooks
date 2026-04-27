@@ -9,18 +9,23 @@ DEFAULT_CONFIG: dict = {
     "cyber_webhook_url": "",
     "cyber_interval_hours": 24,
     "cyber_auto_start": False,
+    "cyber_last_post_at": "",
     "resources_webhook_url": "",
     "resources_interval_hours": 24,
     "resources_auto_start": False,
+    "resources_last_post_at": "",
     "music_webhook_url": "",
     "music_interval_hours": 24,
     "music_auto_start": False,
+    "music_last_post_at": "",
     "bugbounty_webhook_url": "",
     "bugbounty_interval_hours": 24,
     "bugbounty_auto_start": False,
+    "bugbounty_last_post_at": "",
     "dork_webhook_url": "",
     "dork_interval_hours": 24,
     "dork_auto_start": False,
+    "dork_last_post_at": "",
 }
 
 

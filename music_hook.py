@@ -25,6 +25,16 @@ MUSIC_FEEDS = [
     {"url": "https://www.reddit.com/r/industrialmusic/.rss",           "name": "Reddit /r/industrialmusic"},
 ]
 
+# Browser-like headers so feeds don't reject the request
+_FEED_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/124.0.0.0 Safari/537.36"
+    ),
+    "Accept": "application/rss+xml, application/xml, text/xml, */*",
+}
+
 # Max entries to collect per feed before random selection
 _MAX_PER_FEED = 20
 
@@ -41,6 +51,13 @@ def _clean_html(text: str) -> str:
     text = re.sub(r"<[^>]+>", "", text)
     text = html.unescape(text)
     return re.sub(r"\s+", " ", text).strip()
+
+
+def _fetch_feed(url: str) -> "feedparser.FeedParserDict":
+    """Fetch an RSS feed via *requests* so we can send a browser User-Agent."""
+    response = requests.get(url, headers=_FEED_HEADERS, timeout=15, allow_redirects=True)
+    response.raise_for_status()
+    return feedparser.parse(response.content)
 
 
 # ---------------------------------------------------------------------------
@@ -61,7 +78,7 @@ def fetch_random_track(
         try:
             if log_callback:
                 log_callback(f"Fetching from {feed_info['name']} …")
-            feed = feedparser.parse(feed_info["url"])
+            feed = _fetch_feed(feed_info["url"])
             for entry in feed.entries[:_MAX_PER_FEED]:
                 raw_summary = entry.get("summary", entry.get("description", ""))
                 summary = _clean_html(raw_summary)
